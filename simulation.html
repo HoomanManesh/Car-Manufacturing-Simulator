@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Car Manufacturing Simulator</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #06080f;
+  color: #c0d0e8;
+  font-family: 'Courier New', Courier, monospace;
+  min-height: 100vh;
+  padding: 28px 16px 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* ── HEADER ── */
+.header {
+  text-align: center;
+  margin-bottom: 30px;
+}
+.header h1 {
+  font-size: 1.45rem;
+  letter-spacing: 5px;
+  color: #5599ff;
+  text-shadow: 0 0 28px #5599ff60;
+  text-transform: uppercase;
+}
+.header p {
+  font-size: 0.62rem;
+  color: #334466;
+  letter-spacing: 4px;
+  margin-top: 6px;
+}
+.live-dot {
+  display: inline-block;
+  width: 7px; height: 7px;
+  background: #22cc66;
+  border-radius: 50%;
+  margin-right: 6px;
+  box-shadow: 0 0 8px #22cc66;
+  animation: live-blink 1.2s ease-in-out infinite;
+  vertical-align: middle;
+}
+@keyframes live-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* ── PIPELINE WRAPPER ── */
+.pipeline {
+  width: 100%;
+  max-width: 820px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── STAGE CARD ── */
+.stage {
+  background: #0c1220;
+  border: 1px solid #162035;
+  border-radius: 10px;
+  padding: 15px 18px;
+}
+.stage-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.stage-badge {
+  background: #162035;
+  color: #3a6aaa;
+  font-size: 0.55rem;
+  font-weight: bold;
+  padding: 2px 8px;
+  border-radius: 10px;
+  letter-spacing: 1px;
+}
+.stage-title {
+  font-size: 0.6rem;
+  color: #3a6aaa;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+
+/* ── CONNECTOR ── */
+.connector {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 26px;
+  position: relative;
+}
+.connector::before {
+  content: '';
+  position: absolute;
+  left: 50%; top: 0; bottom: 0;
+  width: 2px;
+  background: linear-gradient(to bottom, #162035, #1e3a60, #162035);
+}
+.connector-arrow {
+  font-size: 0.85rem;
+  color: #1e3a60;
+  position: relative;
+  z-index: 1;
+  background: #06080f;
+  padding: 0 10px;
+  animation: arrow-pulse 1.8s ease-in-out infinite;
+}
+@keyframes arrow-pulse {
+  0%, 100% { color: #1e3a60; }
+  50% { color: #4a80cc; }
+}
+
+/* ── ROBOTS ROW ── */
+.robots-row {
+  display: flex;
+  gap: 10px;
+}
+
+/* ── ROBOT CARD ── */
+.robot-card {
+  flex: 1;
+  background: #080d18;
+  border: 1px solid #162035;
+  border-radius: 8px;
+  padding: 11px 14px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  transition: border-color 0.25s, box-shadow 0.25s;
+  position: relative;
+  overflow: hidden;
+  min-width: 0;
+}
+.robot-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  opacity: 0;
+  transition: opacity 0.25s;
+  pointer-events: none;
+}
+
+/* Per-robot accent colours */
+.gas-card       { --accent: #ff6418; }
+.hybrid-card    { --accent: #00cfa8; }
+.titano-card    { --accent: #b060ff; }
+.megaforce-card { --accent: #f43060; }
+.robomount-card { --accent: #f0c040; }
+
+.robot-card.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.robot-card.active::after {
+  opacity: 0.04;
+  background: var(--accent);
+}
+
+.robot-emoji {
+  font-size: 1.85rem;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: transform 0.2s;
+}
+.robot-card.active .robot-emoji {
+  animation: emoji-pop 0.45s ease-out;
+}
+@keyframes emoji-pop {
+  0%   { transform: scale(1); }
+  30%  { transform: scale(1.25) rotate(-8deg); }
+  65%  { transform: scale(0.95) rotate(3deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+.robot-info { flex: 1; min-width: 0; }
+.robot-name {
+  font-size: 0.75rem;
+  font-weight: bold;
+  color: var(--accent);
+  letter-spacing: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.robot-status {
+  display: inline-block;
+  font-size: 0.58rem;
+  margin-top: 3px;
+  padding: 1px 7px;
+  border-radius: 10px;
+  letter-spacing: 1px;
+}
+.s-idle    { background: #162035; color: #3a6aaa; }
+.s-working {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+  animation: status-pulse 0.6s ease-in-out infinite;
+}
+@keyframes status-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.robot-stat {
+  font-size: 0.6rem;
+  color: #334466;
+  margin-top: 5px;
+}
+.robot-stat .val { color: var(--accent); font-weight: bold; }
+
+/* ── QUEUE SLOTS ── */
+.queue-slots {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  min-height: 34px;
+  align-items: center;
+}
+
+.q-slot {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.55rem;
+  font-weight: bold;
+  letter-spacing: 0;
+  transition: background 0.2s, border-color 0.2s;
+}
+.q-slot.empty {
+  background: transparent;
+  border: 1px dashed #162035;
+  color: #1e3050;
+}
+.q-slot.gas-item {
+  background: #2a0d00;
+  border: 1px solid #ff6418;
+  color: #ff9060;
+  box-shadow: 0 0 8px #ff641830;
+}
+.q-slot.hybrid-item {
+  background: #002a20;
+  border: 1px solid #00cfa8;
+  color: #40f0c8;
+  box-shadow: 0 0 8px #00cfa830;
+}
+
+/* Chassis queue slot – wider to show label */
+.ch-slot {
+  height: 32px;
+  min-width: 32px;
+  padding: 0 7px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.52rem;
+  font-weight: bold;
+  white-space: nowrap;
+  letter-spacing: 0;
+  transition: background 0.2s, border-color 0.2s;
+}
+.ch-slot.empty    { background: transparent; border: 1px dashed #162035; color: #1e3050; min-width: 32px; }
+.ch-slot.tg  { background: #1a0035; border: 1px solid #b060ff; color: #c880ff; box-shadow: 0 0 6px #b060ff30; }
+.ch-slot.th  { background: #001835; border: 1px solid #38b0f8; color: #70c8ff; box-shadow: 0 0 6px #38b0f830; }
+.ch-slot.mg  { background: #30000e; border: 1px solid #f43060; color: #ff7090; box-shadow: 0 0 6px #f4306030; }
+.ch-slot.mh  { background: #002010; border: 1px solid #30d080; color: #60f0a0; box-shadow: 0 0 6px #30d08030; }
+
+.queue-summary {
+  margin-top: 8px;
+  font-size: 0.6rem;
+  color: #334466;
+  display: flex;
+  gap: 14px;
+}
+.queue-summary .gv { color: #ff6418; font-weight: bold; }
+.queue-summary .hv { color: #00cfa8; font-weight: bold; }
+.queue-summary .nv { color: #8899bb; font-weight: bold; }
+
+/* pop-in animation for new queue items */
+@keyframes slot-in {
+  0%   { transform: scale(0.4); opacity: 0; }
+  60%  { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.slot-in { animation: slot-in 0.22s ease-out both; }
+
+/* ── CAR COUNTER SECTION ── */
+.counter-section {
+  background: #0c1220;
+  border: 1px solid #162035;
+  border-radius: 10px;
+  padding: 22px 18px 18px;
+  text-align: center;
+}
+.car-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  margin-bottom: 6px;
+}
+.car-emoji {
+  font-size: 2.8rem;
+  animation: float 3s ease-in-out infinite;
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+.car-emoji.bounce { animation: bounce-once 0.35s ease-out; }
+@keyframes bounce-once {
+  0%   { transform: scale(1) translateY(0); }
+  35%  { transform: scale(1.3) translateY(-10px); }
+  100% { transform: scale(1) translateY(0); }
+}
+
+.count-block { text-align: left; }
+.count-number {
+  font-size: 3.8rem;
+  font-weight: bold;
+  color: #5599ff;
+  text-shadow: 0 0 30px #5599ff70;
+  line-height: 1;
+  transition: color 0.12s;
+  min-width: 90px;
+  display: block;
+}
+.count-number.flash { color: #aaccff; }
+.count-label {
+  font-size: 0.6rem;
+  color: #334466;
+  letter-spacing: 3px;
+  margin-top: 3px;
+}
+
+/* ── STATS GRID ── */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-top: 16px;
+}
+.stat-box {
+  background: #080d18;
+  border: 1px solid #162035;
+  border-radius: 7px;
+  padding: 9px 6px;
+  text-align: center;
+}
+.stat-val {
+  font-size: 1.15rem;
+  font-weight: bold;
+  line-height: 1;
+}
+.stat-lbl {
+  font-size: 0.52rem;
+  color: #334466;
+  letter-spacing: 1px;
+  margin-top: 4px;
+}
+.gv  { color: #ff6418; }
+.hv  { color: #00cfa8; }
+.tv  { color: #b060ff; }
+.mv  { color: #f43060; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1><span class="live-dot"></span>Car Manufacturing Simulator</h1>
+  <p>Threaded Pipeline · Real-Time Simulation</p>
+</div>
+
+<div class="pipeline">
+
+  <!-- STAGE 1 – PRODUCERS -->
+  <div class="stage">
+    <div class="stage-header">
+      <span class="stage-badge">STAGE 1</span>
+      <span class="stage-title">Powertrain Production</span>
+    </div>
+    <div class="robots-row">
+      <div class="robot-card gas-card" id="gas-robot">
+        <div class="robot-emoji">⚙️</div>
+        <div class="robot-info">
+          <div class="robot-name">GAS ENGINE</div>
+          <div class="robot-status s-idle" id="gas-status">IDLE</div>
+          <div class="robot-stat">Produced: <span class="val" id="gas-produced">0</span></div>
+        </div>
+      </div>
+      <div class="robot-card hybrid-card" id="hybrid-robot">
+        <div class="robot-emoji">⚡</div>
+        <div class="robot-info">
+          <div class="robot-name">HYBRID ENGINE</div>
+          <div class="robot-status s-idle" id="hybrid-status">IDLE</div>
+          <div class="robot-stat">Produced: <span class="val" id="hybrid-produced">0</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="connector"><span class="connector-arrow">▼</span></div>
+
+  <!-- STAGE 2 – POWERTRAIN QUEUE -->
+  <div class="stage">
+    <div class="stage-header">
+      <span class="stage-badge">STAGE 2</span>
+      <span class="stage-title">Powertrain Queue</span>
+    </div>
+    <div class="queue-slots" id="pt-slots"></div>
+    <div class="queue-summary">
+      <span>GAS: <span class="gv" id="pt-gas">0</span></span>
+      <span>HYBRID: <span class="hv" id="pt-hyb">0</span></span>
+      <span>Total: <span class="nv" id="pt-tot">0</span> / 8</span>
+    </div>
+  </div>
+
+  <div class="connector"><span class="connector-arrow">▼</span></div>
+
+  <!-- STAGE 3 – ASSEMBLERS -->
+  <div class="stage">
+    <div class="stage-header">
+      <span class="stage-badge">STAGE 3</span>
+      <span class="stage-title">Chassis Assembly</span>
+    </div>
+    <div class="robots-row">
+      <div class="robot-card titano-card" id="titano-robot">
+        <div class="robot-emoji">🤖</div>
+        <div class="robot-info">
+          <div class="robot-name">TITANO</div>
+          <div class="robot-status s-idle" id="titano-status">IDLE</div>
+          <div class="robot-stat">Assembled: <span class="val" id="titano-count">0</span></div>
+        </div>
+      </div>
+      <div class="robot-card megaforce-card" id="megaforce-robot">
+        <div class="robot-emoji">🤖</div>
+        <div class="robot-info">
+          <div class="robot-name">MEGAFORCE</div>
+          <div class="robot-status s-idle" id="megaforce-status">IDLE</div>
+          <div class="robot-stat">Assembled: <span class="val" id="megaforce-count">0</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="connector"><span class="connector-arrow">▼</span></div>
+
+  <!-- STAGE 4 – CHASSIS QUEUE -->
+  <div class="stage">
+    <div class="stage-header">
+      <span class="stage-badge">STAGE 4</span>
+      <span class="stage-title">Chassis Queue</span>
+    </div>
+    <div class="queue-slots" id="ch-slots"></div>
+    <div class="queue-summary">
+      <span>Waiting: <span class="nv" id="ch-tot">0</span> / 6</span>
+    </div>
+  </div>
+
+  <div class="connector"><span class="connector-arrow">▼</span></div>
+
+  <!-- STAGE 5 – ROBOMOUNT -->
+  <div class="stage">
+    <div class="stage-header">
+      <span class="stage-badge">STAGE 5</span>
+      <span class="stage-title">Final Assembly</span>
+    </div>
+    <div class="robots-row">
+      <div class="robot-card robomount-card" id="robomount-robot" style="max-width:320px;">
+        <div class="robot-emoji">🔧</div>
+        <div class="robot-info">
+          <div class="robot-name">ROBOMOUNT</div>
+          <div class="robot-status s-idle" id="robomount-status">IDLE</div>
+          <div class="robot-stat">Installed: <span class="val" id="robomount-count">0</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="connector"><span class="connector-arrow">▼</span></div>
+
+  <!-- COUNTER -->
+  <div class="counter-section">
+    <div class="car-row">
+      <div class="car-emoji" id="car-emoji">🚗</div>
+      <div class="count-block">
+        <span class="count-number" id="car-count">0</span>
+        <div class="count-label">CARS ASSEMBLED</div>
+      </div>
+    </div>
+    <div class="stats-grid">
+      <div class="stat-box">
+        <div class="stat-val gv" id="s-gas">0</div>
+        <div class="stat-lbl">GAS ENGINES</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val hv" id="s-hyb">0</div>
+        <div class="stat-lbl">HYBRID ENGINES</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val tv" id="s-titano">0</div>
+        <div class="stat-lbl">TITANO</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val mv" id="s-megaforce">0</div>
+        <div class="stat-lbl">MEGAFORCE</div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- end pipeline -->
+
+<script>
+// ─────────────────────────────────────────────
+// SIMULATION STATE
+// ─────────────────────────────────────────────
+const state = {
+  ptQueue:  [],   // 'GAS' | 'HYBRID'
+  chQueue:  [],   // { robot:'Titano'|'MegaForce', type:'GAS'|'HYBRID' }
+  gasProduced:    0,
+  hybridProduced: 0,
+  titanoTotal:    0,
+  megaforceTotal: 0,
+  carsAssembled:  0,
+};
+
+const PT_MAX = 8;   // powertrain queue visual capacity
+const CH_MAX = 6;   // chassis queue visual capacity
+const HYB_MAX = 4;  // max hybrid items in pt queue at once
+
+// consumer "in-progress" flags (prevent grabbing while still assembling)
+let titanoBusy    = false;
+let megaforceBusy = false;
+let roboMountBusy = false;
+
+// ─────────────────────────────────────────────
+// ROBOT HELPERS
+// ─────────────────────────────────────────────
+function activateRobot(id, workLabel, duration) {
+  const card   = document.getElementById(id + '-robot');
+  const status = document.getElementById(id + '-status');
+  if (!card || !status) return;
+
+  card.classList.add('active');
+  status.textContent = workLabel;
+  status.className   = 'robot-status s-working';
+
+  // restart emoji animation
+  const em = card.querySelector('.robot-emoji');
+  if (em) { em.style.animation = 'none'; em.offsetWidth; em.style.animation = ''; }
+
+  setTimeout(() => {
+    card.classList.remove('active');
+    status.textContent = 'IDLE';
+    status.className   = 'robot-status s-idle';
+  }, duration);
+}
+
+// ─────────────────────────────────────────────
+// QUEUE RENDER
+// ─────────────────────────────────────────────
+function renderPtQueue() {
+  const el = document.getElementById('pt-slots');
+  const newSlots = [];
+  for (let i = 0; i < PT_MAX; i++) {
+    const div = document.createElement('div');
+    if (i < state.ptQueue.length) {
+      const t = state.ptQueue[i];
+      div.className = `q-slot ${t === 'GAS' ? 'gas-item' : 'hybrid-item'} slot-in`;
+      div.textContent = t === 'GAS' ? 'GAS' : 'HYB';
+    } else {
+      div.className = 'q-slot empty';
+      div.textContent = '·';
+    }
+    newSlots.push(div);
+  }
+  el.replaceChildren(...newSlots);
+
+  const gasC = state.ptQueue.filter(x => x === 'GAS').length;
+  const hybC = state.ptQueue.length - gasC;
+  document.getElementById('pt-gas').textContent = gasC;
+  document.getElementById('pt-hyb').textContent = hybC;
+  document.getElementById('pt-tot').textContent = state.ptQueue.length;
+}
+
+function renderChQueue() {
+  const el = document.getElementById('ch-slots');
+  const classMap = {
+    'TitanoGAS': 'tg', 'TitanoHYBRID': 'th',
+    'MegaForceGAS': 'mg', 'MegaForceHYBRID': 'mh',
+  };
+  const labelMap = {
+    'TitanoGAS': 'T·GAS', 'TitanoHYBRID': 'T·HYB',
+    'MegaForceGAS': 'M·GAS', 'MegaForceHYBRID': 'M·HYB',
+  };
+  const newSlots = [];
+  for (let i = 0; i < CH_MAX; i++) {
+    const div = document.createElement('div');
+    if (i < state.chQueue.length) {
+      const key = state.chQueue[i].robot + state.chQueue[i].type;
+      div.className = `ch-slot ${classMap[key]} slot-in`;
+      div.textContent = labelMap[key];
+    } else {
+      div.className = 'ch-slot empty';
+      div.textContent = '·';
+    }
+    newSlots.push(div);
+  }
+  el.replaceChildren(...newSlots);
+  document.getElementById('ch-tot').textContent = state.chQueue.length;
+}
+
+// ─────────────────────────────────────────────
+// SIMULATION STEPS
+// ─────────────────────────────────────────────
+function gasProducerStep() {
+  if (state.ptQueue.length >= PT_MAX) return;
+  state.ptQueue.push('GAS');
+  state.gasProduced++;
+  document.getElementById('gas-produced').textContent = state.gasProduced;
+  activateRobot('gas', 'PRODUCING', 420);
+  renderPtQueue();
+}
+
+function hybridProducerStep() {
+  if (state.ptQueue.length >= PT_MAX) return;
+  const hybInQueue = state.ptQueue.filter(x => x === 'HYBRID').length;
+  if (hybInQueue >= HYB_MAX) return;
+  state.ptQueue.push('HYBRID');
+  state.hybridProduced++;
+  document.getElementById('hybrid-produced').textContent = state.hybridProduced;
+  activateRobot('hybrid', 'PRODUCING', 420);
+  renderPtQueue();
+}
+
+function consumerStep(robotId, robotName) {
+  if (robotId === 'titano'    && titanoBusy)    return;
+  if (robotId === 'megaforce' && megaforceBusy) return;
+  if (state.ptQueue.length === 0) return;
+
+  if (robotId === 'titano')    titanoBusy    = true;
+  if (robotId === 'megaforce') megaforceBusy = true;
+
+  const type = state.ptQueue.shift();
+  renderPtQueue();
+  activateRobot(robotId, 'ASSEMBLING', 580);
+
+  setTimeout(() => {
+    if (state.chQueue.length < CH_MAX) {
+      state.chQueue.push({ robot: robotName, type });
+      if (robotId === 'titano') {
+        state.titanoTotal++;
+        document.getElementById('titano-count').textContent    = state.titanoTotal;
+      } else {
+        state.megaforceTotal++;
+        document.getElementById('megaforce-count').textContent = state.megaforceTotal;
+      }
+      renderChQueue();
+    }
+    if (robotId === 'titano')    titanoBusy    = false;
+    if (robotId === 'megaforce') megaforceBusy = false;
+  }, 320);
+}
+
+function roboMountStep() {
+  if (roboMountBusy) return;
+  if (state.chQueue.length === 0) return;
+
+  roboMountBusy = true;
+  state.chQueue.shift();
+  renderChQueue();
+  activateRobot('robomount', 'INSTALLING', 500);
+
+  setTimeout(() => {
+    state.carsAssembled++;
+
+    // counter flash
+    const countEl = document.getElementById('car-count');
+    countEl.textContent = state.carsAssembled;
+    countEl.classList.add('flash');
+    setTimeout(() => countEl.classList.remove('flash'), 200);
+
+    // car bounce
+    const carEl = document.getElementById('car-emoji');
+    carEl.classList.add('bounce');
+    setTimeout(() => carEl.classList.remove('bounce'), 350);
+
+    // stats
+    document.getElementById('robomount-count').textContent  = state.carsAssembled;
+    document.getElementById('s-gas').textContent            = state.gasProduced;
+    document.getElementById('s-hyb').textContent            = state.hybridProduced;
+    document.getElementById('s-titano').textContent         = state.titanoTotal;
+    document.getElementById('s-megaforce').textContent      = state.megaforceTotal;
+
+    roboMountBusy = false;
+  }, 380);
+}
+
+// ─────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────
+renderPtQueue();
+renderChQueue();
+
+// Stagger start times so the pipeline fills naturally
+setTimeout(() => setInterval(gasProducerStep,    880),  0);
+setTimeout(() => setInterval(hybridProducerStep, 1100), 200);
+setTimeout(() => setInterval(() => consumerStep('titano',    'Titano'),    720),  80);
+setTimeout(() => setInterval(() => consumerStep('megaforce', 'MegaForce'), 860),  300);
+setTimeout(() => setInterval(roboMountStep,      540),  500);
+</script>
+</body>
+</html>
